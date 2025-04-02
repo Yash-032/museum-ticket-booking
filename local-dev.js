@@ -1,51 +1,47 @@
-// This is a simple script to run the application locally
-require('dotenv').config();
-const { exec } = require('child_process');
-const path = require('path');
+const { spawn } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
-console.log('Starting local development environment...');
-
-// Check if .env file exists
-const envPath = path.join(__dirname, '.env');
-if (!fs.existsSync(envPath)) {
-  console.error('\x1b[31mError: .env file not found!\x1b[0m');
-  console.log('Create a .env file in the root directory with:');
-  console.log('DATABASE_URL=your_database_url');
-  console.log('SESSION_SECRET=your_secret');
-  process.exit(1);
+// Check if .env file exists, if not create it with basic config
+if (!fs.existsSync('.env')) {
+  console.log('Creating .env file with default configuration...');
+  fs.writeFileSync('.env', 'SESSION_SECRET=local-development-secret\n');
+  
+  // Prompt for database URL if not available
+  console.log('Please make sure to set DATABASE_URL in your .env file');
 }
 
-// Check if DATABASE_URL is set
-if (!process.env.DATABASE_URL) {
-  console.error('\x1b[31mError: DATABASE_URL environment variable is not set!\x1b[0m');
-  console.log('Make sure your .env file contains:');
-  console.log('DATABASE_URL=your_database_url');
-  process.exit(1);
+console.log('Starting local development server...');
+
+// Choose whether to run the backend or frontend
+const args = process.argv.slice(2);
+const mode = args[0] || 'both';
+
+if (mode === 'server' || mode === 'both') {
+  console.log('Starting backend server...');
+  const backend = spawn('npx', ['tsx', 'server/index.ts'], { 
+    stdio: 'inherit',
+    env: { ...process.env }
+  });
+  
+  backend.on('error', (err) => {
+    console.error('Failed to start backend server:', err);
+  });
 }
 
-console.log('\x1b[32m✓ Environment variables loaded successfully\x1b[0m');
-console.log(`Using database: ${process.env.DATABASE_URL.split('@')[1].split('/')[0]}`);
+if (mode === 'client' || mode === 'both') {
+  console.log('Starting frontend development server...');
+  const frontend = spawn('npx', ['vite', '--config', 'local-vite.config.ts'], {
+    stdio: 'inherit',
+    env: { ...process.env }
+  });
+  
+  frontend.on('error', (err) => {
+    console.error('Failed to start frontend server:', err);
+  });
+}
 
-// Start the server
-console.log('\x1b[34mStarting server...\x1b[0m');
-const server = exec('node -r dotenv/config --loader tsx server/index.ts');
-
-server.stdout.on('data', (data) => {
-  console.log(data.toString().trim());
-});
-
-server.stderr.on('data', (data) => {
-  console.error('\x1b[31m' + data.toString().trim() + '\x1b[0m');
-});
-
-server.on('exit', (code) => {
-  console.log(`Server process exited with code ${code}`);
-});
-
-// Handle termination
-process.on('SIGINT', () => {
-  console.log('\nShutting down...');
-  server.kill();
-  process.exit(0);
-});
+console.log('\nUsage instructions:');
+console.log('- Run "node local-dev.js" to start both servers');
+console.log('- Run "node local-dev.js server" to start only the backend');
+console.log('- Run "node local-dev.js client" to start only the frontend\n');
