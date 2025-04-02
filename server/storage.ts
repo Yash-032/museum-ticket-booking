@@ -8,8 +8,12 @@ import { users, type User, type InsertUser,
   testimonials, type Testimonial, type InsertTestimonial 
 } from "@shared/schema";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { eq, and, desc, or, isNull } from "drizzle-orm";
+import { db } from "./db";
 import createMemoryStore from "memorystore";
 
+const PostgresStore = connectPgSimple(session);
 const MemoryStore = createMemoryStore(session);
 
 export interface IStorage {
@@ -62,7 +66,10 @@ export interface IStorage {
   approveTestimonial(id: number): Promise<Testimonial | undefined>;
 
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: any;
+  
+  // Database initialization
+  initializeDatabase?: () => Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -74,7 +81,7 @@ export class MemStorage implements IStorage {
   private messages: Map<number, Message>;
   private analyticsEntries: Map<number, Analytics>;
   private testimonials: Map<number, Testimonial>;
-  sessionStore: session.SessionStore;
+  sessionStore: any;
   private userIdCounter: number;
   private exhibitionIdCounter: number;
   private ticketTypeIdCounter: number;
@@ -181,32 +188,32 @@ export class MemStorage implements IStorage {
     });
 
     // Create sample testimonials
-    this.createTestimonial({
+    const testimonial1 = this.createTestimonial({
       name: "Sarah J.",
       role: "Museum Member",
       content: "The chatbot made booking tickets so easy! I told it when I wanted to visit and how many people were in my group, and it handled everything. No more waiting in long lines!",
       rating: 5,
-      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      isApproved: true
+      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
     });
+    this.approveTestimonial(testimonial1.id);
 
-    this.createTestimonial({
+    const testimonial2 = this.createTestimonial({
       name: "Michael T.",
       role: "International Visitor",
       content: "I was impressed by how the chatbot could answer all my questions about the exhibitions in multiple languages. It even suggested the best time to visit based on crowd levels.",
       rating: 4,
-      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      isApproved: true
+      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
     });
+    this.approveTestimonial(testimonial2.id);
 
-    this.createTestimonial({
+    const testimonial3 = this.createTestimonial({
       name: "Rebecca K.",
       role: "High School Teacher",
       content: "As a teacher planning a field trip, the group booking feature of the chatbot was a lifesaver. It handled all 30 student tickets efficiently and even arranged a guided tour for us.",
       rating: 5,
-      avatarUrl: "https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      isApproved: true
+      avatarUrl: "https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
     });
+    this.approveTestimonial(testimonial3.id);
   }
 
   // User operations
@@ -293,8 +300,8 @@ export class MemStorage implements IStorage {
       imageUrl: exhibitionData.imageUrl || exhibition.imageUrl,
       startDate: exhibitionData.startDate,
       endDate: exhibitionData.endDate,
-      isFeatured: exhibitionData.isFeatured,
-      isNew: exhibitionData.isNew,
+      isFeatured: exhibitionData.isFeatured ?? exhibition.isFeatured,
+      isNew: exhibitionData.isNew ?? exhibition.isNew,
     };
 
     this.exhibitions.set(id, updatedExhibition);
@@ -344,7 +351,7 @@ export class MemStorage implements IStorage {
       price: ticketTypeData.price,
       color: ticketTypeData.color || ticketType.color,
       includes: ticketTypeData.includes,
-      isPopular: ticketTypeData.isPopular,
+      isPopular: ticketTypeData.isPopular ?? ticketType.isPopular,
     };
 
     this.ticketTypes.set(id, updatedTicketType);
@@ -490,8 +497,8 @@ export class MemStorage implements IStorage {
     const analytics: Analytics = {
       id,
       date: analyticsData.date || now,
-      visitorCount: analyticsData.visitorCount,
-      revenue: analyticsData.revenue,
+      visitorCount: analyticsData.visitorCount ?? 0,
+      revenue: analyticsData.revenue ?? 0,
       popularExhibitionId: analyticsData.popularExhibitionId || null,
       averageVisitDuration: analyticsData.averageVisitDuration || null,
       createdAt: now,
@@ -540,4 +547,405 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  sessionStore: any;
+  
+  constructor() {
+    this.sessionStore = new PostgresStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL
+      },
+      createTableIfMissing: true
+    });
+  }
+
+  // Initialize the database and seed it with initial data if needed
+  async initializeDatabase(): Promise<void> {
+    try {
+      // Check if we already have users in the database
+      const users = await this.getAllUsers();
+      if (users.length === 0) {
+        console.log("Seeding database with initial data...");
+        await this.seedData();
+      } else {
+        console.log(`Database already contains ${users.length} users, skipping seed.`);
+      }
+    } catch (error) {
+      console.error("Error initializing database:", error);
+      throw error;
+    }
+  }
+
+  private async seedData(): Promise<void> {
+    // Create admin user
+    await this.createUser({
+      username: "admin",
+      password: "$2b$10$5H8dj4/ZgZS38KZWy0MO5.Kt5qdvLaYNc7jcG7zQ5EZWNMSCyKiHa", // 'admin123'
+      email: "admin@museum.com",
+      fullName: "Admin User",
+      languagePreference: "en",
+      isAdmin: true
+    });
+
+    // Create regular user
+    await this.createUser({
+      username: "user",
+      password: "$2b$10$BdnP39t1jLXoXR8WTrG8wuxZl2KjxQFD6JLVaFpXGiC.n8uoXT4ti", // 'password123'
+      email: "user@example.com",
+      fullName: "Regular User",
+      languagePreference: "en",
+      isAdmin: false
+    });
+
+    // Create sample exhibitions
+    await this.createExhibition({
+      title: "Ancient Egypt: The Eternal Life",
+      description: "Explore the fascinating world of ancient Egyptian beliefs about death and the afterlife through artifacts, mummies, and immersive experiences.",
+      imageUrl: "https://images.unsplash.com/photo-1566554273541-37a9ca77b91f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      startDate: new Date("2023-09-01"),
+      endDate: new Date("2023-12-15"),
+      isFeatured: true,
+      isNew: false
+    });
+
+    await this.createExhibition({
+      title: "Modern Masters: 20th Century Icons",
+      description: "A curated collection of masterpieces from Picasso, Dalí, Warhol, and more, showcasing the revolutionary art movements of the 20th century.",
+      imageUrl: "https://images.unsplash.com/photo-1605429523419-d828acb941d9?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      startDate: new Date("2023-10-10"),
+      endDate: new Date("2024-02-28"),
+      isFeatured: true,
+      isNew: true
+    });
+
+    await this.createExhibition({
+      title: "Digital Frontiers: Art & Technology",
+      description: "An immersive exhibition exploring the intersection of art and technology through interactive installations, digital media, and virtual reality experiences.",
+      imageUrl: "https://images.unsplash.com/photo-1569587112025-0d160c8c6f7b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+      startDate: new Date("2023-11-05"),
+      endDate: new Date("2024-01-15"),
+      isFeatured: false,
+      isNew: false
+    });
+
+    // Create sample ticket types
+    await this.createTicketType({
+      name: "General Admission",
+      description: "Access to permanent collections",
+      price: 18.0,
+      color: "primary",
+      includes: ["Access to all permanent exhibitions", "Audio guide (additional $5)", "Valid for the selected date only"],
+      isPopular: false
+    });
+
+    await this.createTicketType({
+      name: "Premium Pass",
+      description: "All-inclusive museum experience",
+      price: 32.0,
+      color: "accent",
+      includes: ["All permanent & special exhibitions", "Complimentary audio guide", "Priority entry (skip the line)", "One free museum publication"],
+      isPopular: true
+    });
+
+    await this.createTicketType({
+      name: "Special Exhibition",
+      description: "Entry to featured exhibitions",
+      price: 25.0,
+      color: "neutral",
+      includes: ["Access to special exhibitions only", "Exhibition-specific guided tour", "Valid for the selected date & time"],
+      isPopular: false
+    });
+
+    // Create sample testimonials
+    await this.createTestimonial({
+      name: "Sarah J.",
+      role: "Museum Member",
+      content: "The chatbot made booking tickets so easy! I told it when I wanted to visit and how many people were in my group, and it handled everything. No more waiting in long lines!",
+      rating: 5,
+      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    });
+
+    await this.createTestimonial({
+      name: "Michael T.",
+      role: "International Visitor",
+      content: "I was impressed by how the chatbot could answer all my questions about the exhibitions in multiple languages. It even suggested the best time to visit based on crowd levels.",
+      rating: 4,
+      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    });
+
+    await this.createTestimonial({
+      name: "Rebecca K.",
+      role: "High School Teacher",
+      content: "As a teacher planning a field trip, the group booking feature of the chatbot was a lifesaver. It handled all 30 student tickets efficiently and even arranged a guided tour for us.",
+      rating: 5,
+      avatarUrl: "https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+    });
+
+    console.log("Database seeded successfully.");
+  }
+
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async createUser(userData: Partial<InsertUser> & { isAdmin?: boolean }): Promise<User> {
+    const insertData = {
+      username: userData.username!,
+      password: userData.password!,
+      email: userData.email!,
+      fullName: userData.fullName || null,
+      isAdmin: userData.isAdmin || false,
+      languagePreference: userData.languagePreference || "en"
+    };
+    
+    const [user] = await db.insert(users).values(insertData).returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  // Exhibition operations
+  async getExhibition(id: number): Promise<Exhibition | undefined> {
+    const result = await db.select().from(exhibitions).where(eq(exhibitions.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllExhibitions(): Promise<Exhibition[]> {
+    return db.select().from(exhibitions).orderBy(exhibitions.startDate);
+  }
+
+  async getFeaturedExhibitions(): Promise<Exhibition[]> {
+    return db.select().from(exhibitions).where(eq(exhibitions.isFeatured, true));
+  }
+
+  async createExhibition(exhibitionData: InsertExhibition): Promise<Exhibition> {
+    const [exhibition] = await db.insert(exhibitions).values({
+      title: exhibitionData.title,
+      description: exhibitionData.description,
+      imageUrl: exhibitionData.imageUrl || null,
+      startDate: exhibitionData.startDate,
+      endDate: exhibitionData.endDate,
+      isFeatured: exhibitionData.isFeatured || false,
+      isNew: exhibitionData.isNew || false
+    }).returning();
+    return exhibition;
+  }
+
+  async updateExhibition(id: number, exhibitionData: InsertExhibition): Promise<Exhibition | undefined> {
+    const [exhibition] = await db.update(exhibitions)
+      .set({
+        title: exhibitionData.title,
+        description: exhibitionData.description,
+        imageUrl: exhibitionData.imageUrl,
+        startDate: exhibitionData.startDate,
+        endDate: exhibitionData.endDate,
+        isFeatured: exhibitionData.isFeatured,
+        isNew: exhibitionData.isNew
+      })
+      .where(eq(exhibitions.id, id))
+      .returning();
+    return exhibition;
+  }
+
+  async deleteExhibition(id: number): Promise<boolean> {
+    const result = await db.delete(exhibitions).where(eq(exhibitions.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Ticket type operations
+  async getTicketType(id: number): Promise<TicketType | undefined> {
+    const result = await db.select().from(ticketTypes).where(eq(ticketTypes.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllTicketTypes(): Promise<TicketType[]> {
+    return db.select().from(ticketTypes);
+  }
+
+  async createTicketType(ticketTypeData: InsertTicketType): Promise<TicketType> {
+    const [ticketType] = await db.insert(ticketTypes).values({
+      name: ticketTypeData.name,
+      description: ticketTypeData.description,
+      price: ticketTypeData.price,
+      color: ticketTypeData.color || "primary",
+      includes: ticketTypeData.includes,
+      isPopular: ticketTypeData.isPopular || false
+    }).returning();
+    return ticketType;
+  }
+
+  async updateTicketType(id: number, ticketTypeData: InsertTicketType): Promise<TicketType | undefined> {
+    const [ticketType] = await db.update(ticketTypes)
+      .set({
+        name: ticketTypeData.name,
+        description: ticketTypeData.description,
+        price: ticketTypeData.price,
+        color: ticketTypeData.color,
+        includes: ticketTypeData.includes,
+        isPopular: ticketTypeData.isPopular
+      })
+      .where(eq(ticketTypes.id, id))
+      .returning();
+    return ticketType;
+  }
+
+  async deleteTicketType(id: number): Promise<boolean> {
+    const result = await db.delete(ticketTypes).where(eq(ticketTypes.id, id));
+    return result.rowCount > 0;
+  }
+
+  // Ticket operations
+  async getTicket(id: number): Promise<Ticket | undefined> {
+    const result = await db.select().from(tickets).where(eq(tickets.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getAllTickets(): Promise<Ticket[]> {
+    return db.select().from(tickets).orderBy(desc(tickets.createdAt));
+  }
+
+  async getTicketsByUserId(userId: number): Promise<Ticket[]> {
+    return db.select().from(tickets)
+      .where(eq(tickets.userId, userId))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async createTicket(ticketData: InsertTicket): Promise<Ticket> {
+    const [ticket] = await db.insert(tickets).values({
+      userId: ticketData.userId,
+      ticketTypeId: ticketData.ticketTypeId,
+      exhibitionId: ticketData.exhibitionId || null,
+      quantity: ticketData.quantity,
+      visitDate: ticketData.visitDate,
+      totalPrice: ticketData.totalPrice,
+      isPaid: false,
+      isUsed: false
+    }).returning();
+    return ticket;
+  }
+
+  async markTicketAsPaid(id: number, paymentIntentId: string): Promise<Ticket | undefined> {
+    const [ticket] = await db.update(tickets)
+      .set({
+        isPaid: true,
+        paymentIntentId,
+        qrCodeData: `ticket_${id}_${Date.now()}`
+      })
+      .where(eq(tickets.id, id))
+      .returning();
+    return ticket;
+  }
+
+  async generateQRCode(id: number): Promise<Ticket | undefined> {
+    const [ticket] = await db.update(tickets)
+      .set({
+        qrCodeData: `ticket_${id}_${Date.now()}`
+      })
+      .where(eq(tickets.id, id))
+      .returning();
+    return ticket;
+  }
+
+  async markTicketAsUsed(id: number): Promise<Ticket | undefined> {
+    const [ticket] = await db.update(tickets)
+      .set({
+        isUsed: true
+      })
+      .where(eq(tickets.id, id))
+      .returning();
+    return ticket;
+  }
+
+  // Conversation operations
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    const result = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createConversation(conversationData: InsertConversation): Promise<Conversation> {
+    const [conversation] = await db.insert(conversations).values({
+      userId: conversationData.userId || null,
+      sessionId: conversationData.sessionId,
+      language: conversationData.language || "en"
+    }).returning();
+    return conversation;
+  }
+
+  // Message operations
+  async createMessage(messageData: InsertMessage): Promise<Message> {
+    const [message] = await db.insert(messages).values({
+      conversationId: messageData.conversationId,
+      isFromUser: messageData.isFromUser,
+      content: messageData.content
+    }).returning();
+    return message;
+  }
+
+  async getMessagesByConversationId(conversationId: number): Promise<Message[]> {
+    return db.select().from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(messages.createdAt);
+  }
+
+  // Analytics operations
+  async getAnalytics(): Promise<Analytics[]> {
+    return db.select().from(analytics).orderBy(analytics.date);
+  }
+
+  async createAnalyticsEntry(analyticsData: InsertAnalytics): Promise<Analytics> {
+    const [analytics] = await db.insert(analytics).values({
+      date: analyticsData.date,
+      visitorCount: analyticsData.visitorCount,
+      revenue: analyticsData.revenue,
+      popularExhibitionId: analyticsData.popularExhibitionId,
+      averageVisitDuration: analyticsData.averageVisitDuration
+    }).returning();
+    return analytics;
+  }
+
+  // Testimonial operations
+  async getApprovedTestimonials(): Promise<Testimonial[]> {
+    return db.select().from(testimonials)
+      .where(eq(testimonials.isApproved, true))
+      .orderBy(desc(testimonials.createdAt));
+  }
+
+  async createTestimonial(testimonialData: InsertTestimonial): Promise<Testimonial> {
+    const [testimonial] = await db.insert(testimonials).values({
+      name: testimonialData.name,
+      role: testimonialData.role || null,
+      content: testimonialData.content,
+      rating: testimonialData.rating,
+      avatarUrl: testimonialData.avatarUrl || null,
+      isApproved: false
+    }).returning();
+    return testimonial;
+  }
+
+  async approveTestimonial(id: number): Promise<Testimonial | undefined> {
+    const [testimonial] = await db.update(testimonials)
+      .set({
+        isApproved: true
+      })
+      .where(eq(testimonials.id, id))
+      .returning();
+    return testimonial;
+  }
+}
+
+// Export an instance of the database storage
+export const storage = new DatabaseStorage();
