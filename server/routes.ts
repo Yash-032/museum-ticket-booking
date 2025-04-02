@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
@@ -11,7 +11,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
 
   // Middleware to ensure user is authenticated
-  const ensureAuthenticated = (req: Express.Request, res: Express.Response, next: Function) => {
+  const ensureAuthenticated = (req: Request, res: Response, next: NextFunction) => {
     if (req.isAuthenticated()) {
       return next();
     }
@@ -19,8 +19,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Middleware to ensure user is an admin
-  const ensureAdmin = (req: Express.Request, res: Express.Response, next: Function) => {
-    if (req.isAuthenticated() && req.user.isAdmin) {
+  const ensureAdmin = (req: Request, res: Response, next: NextFunction) => {
+    if (req.isAuthenticated() && req.user && req.user.isAdmin) {
       return next();
     }
     res.status(403).json({ message: "Not authorized" });
@@ -152,13 +152,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Ticket Routes ======
   app.get("/api/tickets", ensureAuthenticated, async (req, res, next) => {
     try {
-      if (req.user.isAdmin) {
+      if (req.user && req.user.isAdmin) {
         const tickets = await storage.getAllTickets();
         return res.json(tickets);
       }
       
-      const tickets = await storage.getTicketsByUserId(req.user.id);
-      res.json(tickets);
+      if (req.user && req.user.id) {
+        const tickets = await storage.getTicketsByUserId(req.user.id);
+        return res.json(tickets);
+      }
+      
+      return res.status(401).json({ message: "User not authenticated" });
     } catch (error) {
       next(error);
     }
@@ -166,6 +170,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tickets", ensureAuthenticated, async (req, res, next) => {
     try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
       const validatedData = insertTicketSchema.parse({
         ...req.body,
         userId: req.user.id
@@ -182,6 +190,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/tickets/:id", ensureAuthenticated, async (req, res, next) => {
     try {
+      if (!req.user) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
       const ticket = await storage.getTicket(Number(req.params.id));
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" });
@@ -201,6 +213,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Payment Routes ======
   app.post("/api/payments/process", ensureAuthenticated, async (req, res, next) => {
     try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "User not authenticated" });
+      }
+      
       const { ticketId } = req.body;
       if (!ticketId) {
         return res.status(400).json({ message: "Ticket ID is required" });
