@@ -50,7 +50,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/exhibitions/:id", async (req, res, next) => {
     try {
-      const exhibition = await storage.getExhibition(parseInt(req.params.id, 10));
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const exhibitionId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const exhibition = await storage.getExhibition(exhibitionId as any);
       if (!exhibition) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -76,7 +79,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/exhibitions/:id", ensureAdmin, async (req, res, next) => {
     try {
       const validatedData = insertExhibitionSchema.parse(req.body);
-      const exhibition = await storage.updateExhibition(parseInt(req.params.id, 10), validatedData);
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const exhibitionId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const exhibition = await storage.updateExhibition(exhibitionId as any, validatedData);
       if (!exhibition) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -91,7 +97,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/exhibitions/:id", ensureAdmin, async (req, res, next) => {
     try {
-      const success = await storage.deleteExhibition(parseInt(req.params.id, 10));
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const exhibitionId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const success = await storage.deleteExhibition(exhibitionId as any);
       if (!success) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -127,7 +136,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/ticket-types/:id", ensureAdmin, async (req, res, next) => {
     try {
       const validatedData = insertTicketTypeSchema.parse(req.body);
-      const ticketType = await storage.updateTicketType(parseInt(req.params.id, 10), validatedData);
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const ticketTypeId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const ticketType = await storage.updateTicketType(ticketTypeId as any, validatedData);
       if (!ticketType) {
         return res.status(404).json({ message: "Ticket type not found" });
       }
@@ -142,7 +154,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/ticket-types/:id", ensureAdmin, async (req, res, next) => {
     try {
-      const success = await storage.deleteTicketType(parseInt(req.params.id, 10));
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const ticketTypeId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const success = await storage.deleteTicketType(ticketTypeId as any);
       if (!success) {
         return res.status(404).json({ message: "Ticket type not found" });
       }
@@ -197,7 +212,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "User not authenticated" });
       }
       
-      const ticket = await storage.getTicket(parseInt(req.params.id, 10));
+      const id = req.params.id;
+      // Support both MongoDB ObjectId and number IDs
+      const ticketId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const ticket = await storage.getTicket(ticketId as any);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" });
       }
@@ -225,7 +243,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Ticket ID is required" });
       }
 
-      const ticket = await storage.getTicket(ticketId);
+      // Support both MongoDB ObjectId and number IDs
+      const parsedTicketId = /^[0-9a-fA-F]{24}$/.test(ticketId) ? ticketId : parseInt(ticketId, 10);
+      const ticket = await storage.getTicket(parsedTicketId as any);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" });
       }
@@ -352,7 +372,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/testimonials/:id/approve", ensureAdmin, async (req, res, next) => {
     try {
-      const testimonial = await storage.approveTestimonial(parseInt(req.params.id, 10));
+      const id = req.params.id;
+      // Only try to parse if it's not already a valid MongoDB ObjectId
+      const testimonialId = /^[0-9a-fA-F]{24}$/.test(id) ? id : parseInt(id, 10);
+      const testimonial = await storage.approveTestimonial(testimonialId as any);
       if (!testimonial) {
         return res.status(404).json({ message: "Testimonial not found" });
       }

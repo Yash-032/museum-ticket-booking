@@ -4,14 +4,10 @@ import createMemoryStore from "memorystore";
 import { IStorage } from "./storage";
 import mongoose, { FilterQuery } from "mongoose";
 import {
-  users, exhibitions, ticketTypes, tickets, conversations, messages, analytics, testimonials,
-  User, Exhibition, TicketType, Ticket, Conversation, Message, Analytics, Testimonial,
   InsertUser, InsertExhibition, InsertTicketType, InsertTicket, InsertConversation, InsertMessage, InsertAnalytics, InsertTestimonial
 } from "@shared/schema";
 import {
-  User as UserModel, Exhibition as ExhibitionModel, TicketType as TicketTypeModel, 
-  Ticket as TicketModel, Conversation as ConversationModel, Message as MessageModel, 
-  Analytics as AnalyticsModel, Testimonial as TestimonialModel
+  User, Exhibition, TicketType, Ticket, Conversation, Message, Analytics, Testimonial
 } from "@shared/mongo-schema";
 import QRCode from "qrcode";
 
@@ -78,6 +74,14 @@ export class MongoDBStorage implements IMongoStorage {
   sessionStore: session.Store;
 
   constructor() {
+    // Use memory store by default for stability
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000 // prune expired entries every 24h
+    });
+    console.log('Using in-memory session store for stability');
+    
+    // Note: MongoDB session store is disabled for now since it's causing startup issues
+    /*
     try {
       // Try to use MongoDB session store
       const mongoStore = new MongoSessionStore({
@@ -105,6 +109,7 @@ export class MongoDBStorage implements IMongoStorage {
         checkPeriod: 86400000 // prune expired entries every 24h
       });
     }
+    */
   }
 
   // Initialize database with sample data if needed
