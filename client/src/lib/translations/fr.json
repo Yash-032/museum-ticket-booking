@@ -170,7 +170,42 @@
     "demoReply1": "Bonjour ! J'aimerais visiter le musée ce week-end. Quelles expositions sont disponibles ?",
     "demoMessage2": "Excellent ! Ce week-end, nous avons trois expositions spéciales : \"Égypte Ancienne : La Vie Éternelle\", \"Maîtres Modernes\" et \"Frontières Numériques\". Souhaitez-vous plus d'informations sur l'une d'entre elles ?",
     "demoReply2": "L'exposition sur l'Égypte Ancienne a l'air intéressante ! Combien coûtent les billets et à quelle heure devrais-je venir ?",
-    "demoMessage3": "L'exposition \"Égypte Ancienne\" est très populaire ! Les billets coûtent 25$ par personne, ou sont inclus avec notre Pass Premium (32$). Je recommande de visiter entre 10h-11h ou après 15h pour éviter la foule. Combien de billets souhaitez-vous ?"
+    "demoMessage3": "L'exposition \"Égypte Ancienne\" est très populaire ! Les billets coûtent 25$ par personne, ou sont inclus avec notre Pass Premium (32$). Je recommande de visiter entre 10h-11h ou après 15h pour éviter la foule. Combien de billets souhaitez-vous ?",
+    "speakToBook": "Réserver par la Voix",
+    "customerCare": "Service Client",
+    "voiceBookingIntro": "Vous pouvez maintenant réserver des billets en utilisant votre voix. Essayez-le !",
+    "customerCareIntro": "Besoin d'aide supplémentaire? Parlez directement avec notre représentant du service client."
+  },
+  "customerCare": {
+    "title": "Service Client",
+    "howToConnect": "Comment souhaitez-vous vous connecter ?",
+    "voiceCall": "Appel Vocal",
+    "videoCall": "Appel Vidéo",
+    "availabilityNote": "Notre équipe de service client est disponible de 9h à 17h, du lundi au vendredi. En dehors de ces heures, veuillez laisser un message et nous vous recontacterons.",
+    "connecting": "Connexion en cours...",
+    "connectedWith": "Connecté avec {{agent}}",
+    "agentTitle": "Agent du Service Client",
+    "activeCall": "Appel actif",
+    "endCall": "Terminer l'Appel"
+  },
+  "voiceBooking": {
+    "title": "Réservation Vocale",
+    "step": "Étape",
+    "of": "sur",
+    "stepWelcome": "Bienvenue à la Réservation Vocale",
+    "stepExhibition": "Sélectionner une Exposition",
+    "stepDate": "Choisir une Date de Visite",
+    "stepTicketType": "Sélectionner un Type de Billet",
+    "stepConfirmation": "Confirmer la Réservation",
+    "stepCompleted": "Réservation Terminée",
+    "processing": "Traitement de votre demande...",
+    "listening": "Écoute...",
+    "speaking": "Parle...",
+    "tapToSpeak": "Touchez pour parler",
+    "stopListening": "Arrêter",
+    "browserNotSupported": "Votre navigateur ne prend pas en charge la reconnaissance vocale",
+    "tryTextChat": "Veuillez utiliser le chat texte à la place ou essayer avec un autre navigateur.",
+    "youSaid": "Vous avez dit"
   },
   "checkout": {
     "title": "Paiement",

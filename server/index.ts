@@ -4,7 +4,9 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { storage } from "./storage";
+// Use MongoDB storage with fallback to in-memory
+import { storage } from "./mongo-storage";
+import { connectToDatabase, disconnectFromDatabase } from "./mongo-db";
 
 const app = express();
 app.use(express.json());
@@ -41,15 +43,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Initialize the database if needed
+  // Try to connect to MongoDB
   try {
+    await connectToDatabase();
+    console.log("Connected to MongoDB successfully");
+    
+    // Initialize the database after connection
     if (storage.initializeDatabase) {
       console.log("Initializing database...");
       await storage.initializeDatabase();
       console.log("Database initialization complete.");
     }
   } catch (error) {
-    console.error("Error initializing database:", error);
+    console.error("Error connecting to MongoDB:", error);
+    console.log("The application will use in-memory fallbacks");
     // Continue execution, don't exit on DB initialization error
   }
 
@@ -82,5 +89,18 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+  });
+  
+  // Handle graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('Shutting down gracefully...');
+    try {
+      await disconnectFromDatabase();
+      console.log('Database connections closed');
+      process.exit(0);
+    } catch (error) {
+      console.error('Error during shutdown:', error);
+      process.exit(1);
+    }
   });
 })();

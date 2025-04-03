@@ -1,12 +1,15 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
-import { storage } from "./storage";
-import { insertExhibitionSchema, insertTicketSchema, insertTicketTypeSchema, insertTestimonialSchema } from "@shared/schema";
+import { storage } from "./mongo-storage";
+import { insertExhibitionSchema, insertTicketSchema, insertTicketTypeSchema, insertTestimonialSchema } from "@shared/mongo-schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Database connection is now handled in index.ts
+  // This avoids duplicate connection attempts
+
   // Set up authentication routes
   setupAuth(app);
 
@@ -20,10 +23,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Middleware to ensure user is an admin
   const ensureAdmin = (req: Request, res: Response, next: NextFunction) => {
-    if (req.isAuthenticated() && req.user && req.user.isAdmin) {
+    if (req.isAuthenticated() && req.user && req.user.isAdmin === true) {
       return next();
     }
-    res.status(403).json({ message: "Not authorized" });
+    res.status(403).json({ message: "Not authorized - Admin access required" });
   };
 
   // ====== Exhibition Routes ======
@@ -47,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/exhibitions/:id", async (req, res, next) => {
     try {
-      const exhibition = await storage.getExhibition(Number(req.params.id));
+      const exhibition = await storage.getExhibition(parseInt(req.params.id, 10));
       if (!exhibition) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -73,7 +76,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/exhibitions/:id", ensureAdmin, async (req, res, next) => {
     try {
       const validatedData = insertExhibitionSchema.parse(req.body);
-      const exhibition = await storage.updateExhibition(Number(req.params.id), validatedData);
+      const exhibition = await storage.updateExhibition(parseInt(req.params.id, 10), validatedData);
       if (!exhibition) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -88,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/exhibitions/:id", ensureAdmin, async (req, res, next) => {
     try {
-      const success = await storage.deleteExhibition(Number(req.params.id));
+      const success = await storage.deleteExhibition(parseInt(req.params.id, 10));
       if (!success) {
         return res.status(404).json({ message: "Exhibition not found" });
       }
@@ -124,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/ticket-types/:id", ensureAdmin, async (req, res, next) => {
     try {
       const validatedData = insertTicketTypeSchema.parse(req.body);
-      const ticketType = await storage.updateTicketType(Number(req.params.id), validatedData);
+      const ticketType = await storage.updateTicketType(parseInt(req.params.id, 10), validatedData);
       if (!ticketType) {
         return res.status(404).json({ message: "Ticket type not found" });
       }
@@ -139,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/ticket-types/:id", ensureAdmin, async (req, res, next) => {
     try {
-      const success = await storage.deleteTicketType(Number(req.params.id));
+      const success = await storage.deleteTicketType(parseInt(req.params.id, 10));
       if (!success) {
         return res.status(404).json({ message: "Ticket type not found" });
       }
@@ -152,13 +155,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Ticket Routes ======
   app.get("/api/tickets", ensureAuthenticated, async (req, res, next) => {
     try {
-      if (req.user && req.user.isAdmin) {
+      if (req.user && req.user.isAdmin === true) {
         const tickets = await storage.getAllTickets();
         return res.json(tickets);
       }
       
-      if (req.user && req.user.id) {
-        const tickets = await storage.getTicketsByUserId(req.user.id);
+      if (req.user && req.user._id) {
+        const tickets = await storage.getTicketsByUserId(req.user._id.toString());
         return res.json(tickets);
       }
       
@@ -170,13 +173,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tickets", ensureAuthenticated, async (req, res, next) => {
     try {
-      if (!req.user || !req.user.id) {
+      if (!req.user || !req.user._id) {
         return res.status(401).json({ message: "User not authenticated" });
       }
       
       const validatedData = insertTicketSchema.parse({
         ...req.body,
-        userId: req.user.id
+        userId: req.user._id.toString()
       });
       const ticket = await storage.createTicket(validatedData);
       res.status(201).json(ticket);
@@ -194,13 +197,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "User not authenticated" });
       }
       
-      const ticket = await storage.getTicket(Number(req.params.id));
+      const ticket = await storage.getTicket(parseInt(req.params.id, 10));
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" });
       }
       
       // Only allow access to the user's own tickets or admin
-      if (ticket.userId !== req.user.id && !req.user.isAdmin) {
+      if (ticket.userId.toString() !== req.user._id.toString() && req.user.isAdmin !== true) {
         return res.status(403).json({ message: "Not authorized" });
       }
       
@@ -213,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ====== Payment Routes ======
   app.post("/api/payments/process", ensureAuthenticated, async (req, res, next) => {
     try {
-      if (!req.user || !req.user.id) {
+      if (!req.user || !req.user._id) {
         return res.status(401).json({ message: "User not authenticated" });
       }
       
@@ -222,12 +225,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Ticket ID is required" });
       }
 
-      const ticket = await storage.getTicket(Number(ticketId));
+      const ticket = await storage.getTicket(ticketId);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket not found" });
       }
 
-      if (ticket.userId !== req.user.id) {
+      if (ticket.userId.toString() !== req.user._id.toString()) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
@@ -238,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // In a real application, we would integrate with a payment processor here
       // For this example, we'll just mark the ticket as paid
       const paymentId = `pi_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-      const updatedTicket = await storage.markTicketAsPaid(ticket.id, paymentId);
+      const updatedTicket = await storage.markTicketAsPaid(ticket._id.toString(), paymentId);
 
       res.json({ success: true, ticket: updatedTicket });
     } catch (error) {
@@ -260,15 +263,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Add welcome message
       await storage.createMessage({
-        conversationId: conversation.id,
+        conversationId: conversation._id.toString(),
         isFromUser: false,
         content: "Hello! I'm your museum booking assistant. How can I help you today?",
       });
 
-      const messages = await storage.getMessagesByConversationId(conversation.id);
+      const messages = await storage.getMessagesByConversationId(conversation._id.toString());
       
       res.json({ 
-        conversationId: conversation.id,
+        conversationId: conversation._id.toString(),
         sessionId,
         messages
       });
@@ -349,7 +352,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/testimonials/:id/approve", ensureAdmin, async (req, res, next) => {
     try {
-      const testimonial = await storage.approveTestimonial(Number(req.params.id));
+      const testimonial = await storage.approveTestimonial(parseInt(req.params.id, 10));
       if (!testimonial) {
         return res.status(404).json({ message: "Testimonial not found" });
       }

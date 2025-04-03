@@ -8,7 +8,9 @@ import {
   Minimize2, 
   SendHorizontal,
   HelpCircle,
-  Globe
+  Globe,
+  Mic,
+  Phone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ChatBubble from "./ChatBubble";
@@ -19,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
+import CustomerCare from "./CustomerCare";
+import VoiceBooking from "./VoiceBooking";
 
 interface Message {
   id: number;
@@ -38,6 +42,7 @@ const ChatBot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [conversationId, setConversationId] = useState<number | null>(null);
+  const [activeView, setActiveView] = useState<"chat" | "voiceBooking" | "customerCare">("chat");
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -181,84 +186,136 @@ const ChatBot = () => {
             </div>
           </div>
           
-          {/* Messages */}
-          <div 
-            ref={chatMessagesRef}
-            className="flex-grow overflow-y-auto p-4 bg-neutral-50 space-y-4"
-          >
-            {startConversation.isLoading ? (
-              <div className="flex justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              </div>
-            ) : (
-              messages.map((message) => (
-                <ChatBubble 
-                  key={message.id}
-                  message={message.content}
-                  isUser={message.isFromUser}
-                />
-              ))
-            )}
-            
-            {sendMessage.isPending && (
-              <div className="flex items-start">
-                <div className="bg-primary-600 text-white rounded-lg py-2 px-4 max-w-xs flex items-center space-x-2">
-                  <div className="flex space-x-1">
-                    <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0s" }}></div>
-                    <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                    <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+          {activeView === "chat" && (
+            <>
+              {/* Messages */}
+              <div 
+                ref={chatMessagesRef}
+                className="flex-grow overflow-y-auto p-4 bg-neutral-50 space-y-4"
+              >
+                {startConversation.status === 'pending' ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
                   </div>
+                ) : (
+                  <>
+                    {messages.map((message) => (
+                      <ChatBubble 
+                        key={message.id}
+                        message={message.content}
+                        isUser={message.isFromUser}
+                      />
+                    ))}
+                    
+                    {/* Voice booking and customer care feature suggestions */}
+                    {messages.length > 0 && (
+                      <div className="my-5 space-y-3">
+                        <div 
+                          className="bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-center cursor-pointer hover:bg-blue-100 transition-colors"
+                          onClick={() => setActiveView("voiceBooking")}
+                        >
+                          <div className="bg-blue-100 p-2 rounded-full mr-3">
+                            <Mic className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-blue-700">{t("chatbot.speakToBook")}</p>
+                            <p className="text-sm text-blue-600">{t("chatbot.voiceBookingIntro")}</p>
+                          </div>
+                        </div>
+                        
+                        <div 
+                          className="bg-green-50 p-3 rounded-lg border border-green-100 flex items-center cursor-pointer hover:bg-green-100 transition-colors"
+                          onClick={() => setActiveView("customerCare")}
+                        >
+                          <div className="bg-green-100 p-2 rounded-full mr-3">
+                            <Phone className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-green-700">{t("chatbot.customerCare")}</p>
+                            <p className="text-sm text-green-600">{t("chatbot.customerCareIntro")}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                
+                {sendMessage.status === 'pending' && (
+                  <div className="flex items-start">
+                    <div className="bg-primary-600 text-white rounded-lg py-2 px-4 max-w-xs flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0s" }}></div>
+                        <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                        <div className="h-2 w-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Input area */}
+              <div className="p-4 border-t border-neutral-200 bg-white rounded-b-xl">
+                <div className="flex text-sm text-neutral-500 mb-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 px-2 text-neutral-500">
+                        <Globe className="h-4 w-4 mr-1" />
+                        {languages.find(l => l.code === i18n.language)?.name || "English"}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {languages.map((lang) => (
+                        <DropdownMenuItem 
+                          key={lang.code}
+                          onClick={() => changeLanguage(lang.code)}
+                        >
+                          {lang.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
+                  <Button variant="ghost" size="sm" className="h-8 px-2 text-neutral-500">
+                    <HelpCircle className="h-4 w-4 mr-1" />
+                    {t("chatbot.help")}
+                  </Button>
+                </div>
+                <div className="flex">
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    placeholder={t("chatbot.inputPlaceholder")}
+                    className="flex-grow border border-neutral-300 rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    disabled={!conversationId || sendMessage.status === 'pending'}
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!messageInput.trim() || !conversationId || sendMessage.status === 'pending'}
+                    className="rounded-l-none"
+                  >
+                    <SendHorizontal className="h-5 w-5" />
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
+            </>
+          )}
           
-          {/* Input area */}
-          <div className="p-4 border-t border-neutral-200 bg-white rounded-b-xl">
-            <div className="flex text-sm text-neutral-500 mb-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 px-2 text-neutral-500">
-                    <Globe className="h-4 w-4 mr-1" />
-                    {languages.find(l => l.code === i18n.language)?.name || "English"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {languages.map((lang) => (
-                    <DropdownMenuItem 
-                      key={lang.code}
-                      onClick={() => changeLanguage(lang.code)}
-                    >
-                      {lang.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              
-              <Button variant="ghost" size="sm" className="h-8 px-2 text-neutral-500">
-                <HelpCircle className="h-4 w-4 mr-1" />
-                {t("chatbot.help")}
-              </Button>
-            </div>
-            <div className="flex">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder={t("chatbot.inputPlaceholder")}
-                className="flex-grow border border-neutral-300 rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                disabled={!conversationId || sendMessage.isPending}
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={!messageInput.trim() || !conversationId || sendMessage.isPending}
-                className="rounded-l-none"
-              >
-                <SendHorizontal className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
+          {activeView === "voiceBooking" && (
+            <VoiceBooking 
+              onClose={toggleChat} 
+              onBack={() => setActiveView("chat")} 
+              conversationId={conversationId}
+            />
+          )}
+          
+          {activeView === "customerCare" && (
+            <CustomerCare 
+              onClose={toggleChat} 
+              onBack={() => setActiveView("chat")} 
+            />
+          )}
         </div>
       </div>
     </>

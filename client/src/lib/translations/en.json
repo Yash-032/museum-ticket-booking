@@ -170,7 +170,42 @@
     "demoReply1": "Hi! I'd like to visit the museum this weekend. What exhibitions are available?",
     "demoMessage2": "Great! This weekend we have three special exhibitions: \"Ancient Egypt: The Eternal Life\", \"Modern Masters\", and \"Digital Frontiers\". Would you like more information about any of these?",
     "demoReply2": "The Ancient Egypt one sounds interesting! How much are tickets and what time should I come?",
-    "demoMessage3": "The \"Ancient Egypt\" exhibition is very popular! Tickets are $25 per person, or included with our Premium Pass ($32). I recommend visiting between 10-11 AM or after 3 PM for smaller crowds. How many tickets would you like?"
+    "demoMessage3": "The \"Ancient Egypt\" exhibition is very popular! Tickets are $25 per person, or included with our Premium Pass ($32). I recommend visiting between 10-11 AM or after 3 PM for smaller crowds. How many tickets would you like?",
+    "speakToBook": "Speak to Book",
+    "customerCare": "Talk to Customer Care",
+    "voiceBookingIntro": "You can now book tickets using your voice. Try it out!",
+    "customerCareIntro": "Need more help? Speak directly with our customer service representative."
+  },
+  "customerCare": {
+    "title": "Customer Care",
+    "howToConnect": "How would you like to connect?",
+    "voiceCall": "Voice Call",
+    "videoCall": "Video Call",
+    "availabilityNote": "Our customer service team is available 9am-5pm, Monday to Friday. Outside these hours, please leave a message and we'll get back to you.",
+    "connecting": "Connecting...",
+    "connectedWith": "Connected with {{agent}}",
+    "agentTitle": "Customer Service Agent",
+    "activeCall": "Active call",
+    "endCall": "End Call"
+  },
+  "voiceBooking": {
+    "title": "Voice Booking",
+    "step": "Step",
+    "of": "of",
+    "stepWelcome": "Welcome to Voice Booking",
+    "stepExhibition": "Select Exhibition",
+    "stepDate": "Choose Visit Date",
+    "stepTicketType": "Select Ticket Type",
+    "stepConfirmation": "Confirm Booking",
+    "stepCompleted": "Booking Complete",
+    "processing": "Processing your request...",
+    "listening": "Listening...",
+    "speaking": "Speaking...",
+    "tapToSpeak": "Tap to speak",
+    "stopListening": "Stop",
+    "browserNotSupported": "Your browser doesn't support voice recognition",
+    "tryTextChat": "Please use text chat instead or try with a different browser.",
+    "youSaid": "You said"
   },
   "checkout": {
     "title": "Checkout",
